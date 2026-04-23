@@ -1,0 +1,81 @@
+<script>
+(function(){
+  // guard so we only init once
+  if (window._mcneelaNavTrackingInit) return;
+  window._mcneelaNavTrackingInit = true;
+
+  // the click-handler logic
+  function handleNavClick(e) {
+    // find the nav container if it exists
+    var nav = document.getElementsByClassName('mobile-navigation')[0];
+    if (!nav || !nav.contains(e.target)) return;
+
+    // climb up to actionable element
+    var el = e.target;
+    while (el && el !== nav) {
+      if (
+        el.tagName === 'A' ||
+        (el.className && el.className.match(/\bjs-openLevel\b/))   ||
+        (el.className && el.className.match(/\bjs-closeLevel\b/))  ||
+        (el.className && el.className.match(/\bjs-closeLevelTop\b/))
+      ) break;
+      el = el.parentNode;
+    }
+    if (!el || el === nav) return;
+
+    // determine interaction
+    var type = 'navClick';
+    if      ((el.className||'').match(/\bjs-openLevel\b/))     type = 'navOpen';
+    else if ((el.className||'').match(/\bjs-closeLevelTop\b/)) type = 'navCloseAll';
+    else if ((el.className||'').match(/\bjs-closeLevel\b/))    type = 'navBack';
+
+    // get URL/text
+    var url  = (el.tagName==='A' && el.href) ? el.href : '';
+    var txt  = (el.textContent||el.innerText||'').replace(/^\s+|\s+$/g,'');
+
+    // compute level by counting UL.pushNav_level
+    var lvl = 1, p = el;
+    while (p && p !== nav) {
+      if (p.tagName==='UL' && (p.className||'').indexOf('pushNav_level')>-1) {
+        lvl++;
+      }
+      p = p.parentNode;
+    }
+
+    // push to dataLayer
+    window.dataLayer = window.dataLayer||[];
+    window.dataLayer.push({
+      'event':               'mobileNavInteraction',
+      'navInteractionType':  type,
+      'navLinkUrl':          url,
+      'navLinkText':         txt,
+      'navLinkLevel':        lvl
+    });
+  }
+
+  // initialize: attach the document‐level click listener
+  function initTracking() {
+    // avoid double‐binding
+    if (window._mcneelaNavTrackingBound) return;
+    window._mcneelaNavTrackingBound = true;
+    document.addEventListener('click', handleNavClick, false);
+  }
+
+  // 1. Run on DOM ready
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    initTracking();
+  } else {
+    document.addEventListener('DOMContentLoaded', initTracking, false);
+  }
+
+  // 2. Also watch for late injection of .mobile-navigation
+  var mo = new MutationObserver(function(muts){
+    if (document.getElementsByClassName('mobile-navigation')[0]) {
+      initTracking();
+      mo.disconnect();
+    }
+  });
+  mo.observe(document.body, { childList: true, subtree: true });
+
+})();
+</script>
