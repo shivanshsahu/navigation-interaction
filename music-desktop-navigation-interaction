@@ -1,0 +1,86 @@
+<script>
+/* -----------------------------------------------------------------
+   Desktop nav tracking  –  sends ONE custom event to the DataLayer:
+     event = 'desktopNavInteraction'
+   Parameters added on each push:
+     • navInteractionType : 'open' | 'click'
+     • navLinkUrl         : destination pathname (or current page for opens)
+     • navLinkLevel       : level1 | level2 | level3
+     • navLinkText        : link’s visible text (trimmed, no HTML)
+   ----------------------------------------------------------------- */
+(function () {
+
+  /* Prevent double injection (SPA/PJAX safety) */
+  if (window.__mcNavTrack) { return; }
+  window.__mcNavTrack = true;
+
+  /* Desktop only */
+  if (window.innerWidth < 1024) { return; }
+
+  /* ---------------------------------------------------------- */
+  var dataLayer = window.dataLayer = window.dataLayer || [];
+  var NAV_ROOT  = document.querySelector('.header-menulisting');   // adjust if needed
+  if (!NAV_ROOT) { return; }
+
+  var OPEN_DELAY = 120;   /* ms – hover debounce */
+  var openTimer  = null;
+
+  /* ---------- helper: closest (IE11-safe) ---------- */
+  function closest(el, selector) {
+    while (el && el.nodeType === 1) {
+      if (el.matches(selector)) { return el; }
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  /* ---------- helper: depth (level1|2|3) ---------- */
+  function getDepth(anchor) {
+    var depth = 1;
+    var parent = closest(anchor, '.navPage-subMenu');
+    while (parent) {
+      depth += 1;
+      parent = closest(parent.parentElement, '.navPage-subMenu');
+    }
+    return 'level' + depth;
+  }
+
+  /* ---------- helper: push to DataLayer ---------- */
+  function pushNavEvent(type, url, level, text) {
+    dataLayer.push({
+      event: 'desktopNavInteraction',
+      navInteractionType: type,    // 'open' | 'click'
+      navLinkUrl: url,
+      navLinkLevel: level,
+      navLinkText: text
+    });
+  }
+
+  /* ---------- handle “open” (level-1 only) ---------- */
+  function handleOpen(e) {
+    var li = closest(e.target, '.navPages-item');
+    if (!li || !li.querySelector('.navPage-subMenu')) { return; }  // no submenu
+
+    clearTimeout(openTimer);
+    openTimer = setTimeout(function () {
+      var link = li.querySelector('.navPages-action');
+      var txt  = link ? link.textContent.trim() : '';
+      pushNavEvent('open', location.pathname, 'level1', txt);
+    }, OPEN_DELAY);
+  }
+
+  NAV_ROOT.addEventListener('mouseenter', handleOpen, true);
+  NAV_ROOT.addEventListener('focusin',    handleOpen, true);
+
+  /* ---------- handle “click” (all depths) ---------- */
+  NAV_ROOT.addEventListener('click', function (e) {
+    var anchor = closest(e.target, 'a');
+    if (!anchor) { return; }
+
+    var level = getDepth(anchor);
+    var text  = anchor.textContent.trim();
+    pushNavEvent('click', anchor.pathname, level, text);
+  }, true);
+
+})();
+</script>
